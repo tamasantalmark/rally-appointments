@@ -43,7 +43,14 @@ const AppointmentsList = ({ tenantId }: AppointmentsListProps) => {
   const fetchAppointments = async () => {
     const { data, error } = await supabase
       .from("appointments")
-      .select("*")
+      .select(`
+        *,
+        services (
+          name,
+          duration,
+          price
+        )
+      `)
       .eq("tenant_id", tenantId)
       .order("appointment_date", { ascending: true })
       .order("start_time", { ascending: true });
@@ -114,6 +121,12 @@ const AppointmentsList = ({ tenantId }: AppointmentsListProps) => {
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h3 className="font-semibold text-lg">{appointment.customer_name}</h3>
+                      {appointment.services && (
+                        <p className="text-sm text-primary font-medium">
+                          {appointment.services.name}
+                          {appointment.price && ` - ${appointment.price.toLocaleString('hu-HU')} Ft`}
+                        </p>
+                      )}
                       <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />

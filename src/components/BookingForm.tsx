@@ -5,16 +5,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { format, addMinutes, parse } from "date-fns";
 import { z } from "zod";
 
 const bookingSchema = z.object({
-  name: z.string().trim().min(1, "Name is required").max(100),
-  email: z.string().trim().email("Invalid email address").max(255),
+  name: z.string().trim().min(1, "A név megadása kötelező").max(100),
+  email: z.string().trim().email("Érvénytelen email cím").max(255),
   phone: z.string().trim().max(20).optional(),
   notes: z.string().trim().max(1000).optional(),
 });
+
+interface Service {
+  id: string;
+  name: string;
+  duration: number;
+  price: number | null;
+  description: string | null;
+}
 
 interface BookingFormProps {
   tenant: any;
@@ -22,6 +31,8 @@ interface BookingFormProps {
 
 const BookingForm = ({ tenant }: BookingFormProps) => {
   const { toast } = useToast();
+  const [services, setServices] = useState<Service[]>([]);
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [selectedTime, setSelectedTime] = useState<string>("");
@@ -34,13 +45,31 @@ const BookingForm = ({ tenant }: BookingFormProps) => {
   });
 
   useEffect(() => {
-    if (selectedDate) {
+    fetchServices();
+  }, [tenant.id]);
+
+  useEffect(() => {
+    if (selectedDate && selectedService) {
       fetchAvailableSlots();
     }
-  }, [selectedDate]);
+  }, [selectedDate, selectedService]);
+
+  const fetchServices = async () => {
+    const { data, error } = await supabase
+      .from("services")
+      .select("*")
+      .eq("tenant_id", tenant.id)
+      .order("name");
+
+    if (error) {
+      console.error("Error fetching services:", error);
+    } else {
+      setServices(data || []);
+    }
+  };
 
   const fetchAvailableSlots = async () => {
-    if (!selectedDate) return;
+    if (!selectedDate || !selectedService) return;
 
     const dayOfWeek = selectedDate.getDay();
 
@@ -63,22 +92,40 @@ const BookingForm = ({ tenant }: BookingFormProps) => {
       .eq("appointment_date", format(selectedDate, "yyyy-MM-dd"))
       .neq("status", "cancelled");
 
-    const bookedTimes = new Set(appointments?.map(a => a.start_time) || []);
-
-    // Generate time slots
+    // Generate time slots based on service duration
     const slots: string[] = [];
-    availability.forEach((slot) => {
-      const startTime = parse(slot.start_time, "HH:mm:ss", new Date());
-      const endTime = parse(slot.end_time, "HH:mm:ss", new Date());
-      const duration = slot.slot_duration;
+    const serviceDuration = selectedService.duration;
 
-      let currentTime = startTime;
-      while (currentTime < endTime) {
+    availability.forEach((slot) => {
+      const slotStart = parse(slot.start_time, "HH:mm:ss", new Date());
+      const slotEnd = parse(slot.end_time, "HH:mm:ss", new Date());
+
+      let currentTime = slotStart;
+      while (currentTime < slotEnd) {
+        const proposedEnd = addMinutes(currentTime, serviceDuration);
+        
+        // Check if the full service duration fits within this availability slot
+        if (proposedEnd > slotEnd) break;
+
         const timeStr = format(currentTime, "HH:mm:ss");
-        if (!bookedTimes.has(timeStr)) {
+        const endStr = format(proposedEnd, "HH:mm:ss");
+
+        // Check if this time slot overlaps with any existing appointment
+        const hasConflict = appointments?.some(apt => {
+          const aptStart = parse(apt.start_time, "HH:mm:ss", new Date());
+          const aptEnd = parse(apt.end_time, "HH:mm:ss", new Date());
+          const proposedStart = parse(timeStr, "HH:mm:ss", new Date());
+          const proposedEndTime = parse(endStr, "HH:mm:ss", new Date());
+          
+          // Check if there's any overlap
+          return (proposedStart < aptEnd && proposedEndTime > aptStart);
+        });
+
+        if (!hasConflict) {
           slots.push(format(currentTime, "HH:mm"));
         }
-        currentTime = addMinutes(currentTime, duration);
+
+        currentTime = addMinutes(currentTime, 15); // Check every 15 minutes
       }
     });
 
@@ -88,10 +135,10 @@ const BookingForm = ({ tenant }: BookingFormProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedDate || !selectedTime) {
+    if (!selectedDate || !selectedTime || !selectedService) {
       toast({
-        title: "Missing Information",
-        description: "Please select a date and time",
+        title: "Hiányzó információ",
+        description: "Válassz szolgáltatást, dátumot és időpontot",
         variant: "destructive",
       });
       return;
@@ -102,7 +149,7 @@ const BookingForm = ({ tenant }: BookingFormProps) => {
     } catch (error) {
       if (error instanceof z.ZodError) {
         toast({
-          title: "Validation Error",
+          title: "Érvénytelen adat",
           description: error.errors[0].message,
           variant: "destructive",
         });
@@ -112,45 +159,38 @@ const BookingForm = ({ tenant }: BookingFormProps) => {
 
     setLoading(true);
 
-    // Get slot duration from availability
-    const dayOfWeek = selectedDate.getDay();
-    const { data: availability } = await supabase
-      .from("availability_slots")
-      .select("slot_duration")
-      .eq("tenant_id", tenant.id)
-      .eq("day_of_week", dayOfWeek)
-      .single();
-
-    const duration = availability?.slot_duration || 30;
     const startTime = parse(selectedTime, "HH:mm", new Date());
-    const endTime = addMinutes(startTime, duration);
+    const endTime = addMinutes(startTime, selectedService.duration);
 
     const { error } = await supabase.from("appointments").insert({
       tenant_id: tenant.id,
+      service_id: selectedService.id,
       customer_name: formData.name,
       customer_email: formData.email,
       customer_phone: formData.phone || null,
       appointment_date: format(selectedDate, "yyyy-MM-dd"),
       start_time: format(startTime, "HH:mm:ss"),
       end_time: format(endTime, "HH:mm:ss"),
+      price: selectedService.price,
       notes: formData.notes || null,
     });
 
     if (error) {
       toast({
-        title: "Booking Failed",
+        title: "Foglalás sikertelen",
         description: error.message,
         variant: "destructive",
       });
     } else {
       toast({
-        title: "Success!",
-        description: "Your appointment has been booked",
+        title: "Sikeres!",
+        description: "Az időpont lefoglalva",
       });
       // Reset form
       setFormData({ name: "", email: "", phone: "", notes: "" });
       setSelectedDate(undefined);
       setSelectedTime("");
+      setSelectedService(null);
     }
 
     setLoading(false);
@@ -159,44 +199,75 @@ const BookingForm = ({ tenant }: BookingFormProps) => {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-4">
-        <div>
-          <Label>Select Date</Label>
-          <Calendar
-            mode="single"
-            selected={selectedDate}
-            onSelect={setSelectedDate}
-            disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-            className="rounded-md border mt-2"
-          />
+        <div className="space-y-2">
+          <Label>Szolgáltatás választása *</Label>
+          <Select 
+            value={selectedService?.id} 
+            onValueChange={(value) => {
+              const service = services.find(s => s.id === value);
+              setSelectedService(service || null);
+              setSelectedTime(""); // Reset time when service changes
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Válassz szolgáltatást" />
+            </SelectTrigger>
+            <SelectContent>
+              {services.map((service) => (
+                <SelectItem key={service.id} value={service.id}>
+                  {service.name} - {service.duration} perc
+                  {service.price && ` (${service.price.toLocaleString('hu-HU')} Ft)`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {selectedService?.description && (
+            <p className="text-sm text-muted-foreground">{selectedService.description}</p>
+          )}
         </div>
 
-        {selectedDate && (
-          <div className="space-y-2">
-            <Label>Available Times</Label>
-            {availableSlots.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No available slots for this day</p>
-            ) : (
-              <div className="grid grid-cols-3 gap-2">
-                {availableSlots.map((slot) => (
-                  <Button
-                    key={slot}
-                    type="button"
-                    variant={selectedTime === slot ? "default" : "outline"}
-                    onClick={() => setSelectedTime(slot)}
-                    className="w-full"
-                  >
-                    {slot}
-                  </Button>
-                ))}
+        {selectedService && (
+          <>
+            <div>
+              <Label>Dátum választása</Label>
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={setSelectedDate}
+                disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                className="rounded-md border mt-2"
+              />
+            </div>
+
+            {selectedDate && (
+              <div className="space-y-2">
+                <Label>Elérhető időpontok</Label>
+                {availableSlots.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Ezen a napon nincs szabad időpont</p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    {availableSlots.map((slot) => (
+                      <Button
+                        key={slot}
+                        type="button"
+                        variant={selectedTime === slot ? "default" : "outline"}
+                        onClick={() => setSelectedTime(slot)}
+                        className="w-full"
+                      >
+                        {slot}
+                      </Button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
-          </div>
+          </>
         )}
       </div>
 
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="name">Your Name *</Label>
+          <Label htmlFor="name">Név *</Label>
           <Input
             id="name"
             value={formData.name}
@@ -217,7 +288,7 @@ const BookingForm = ({ tenant }: BookingFormProps) => {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="phone">Phone</Label>
+          <Label htmlFor="phone">Telefonszám</Label>
           <Input
             id="phone"
             type="tel"
@@ -227,7 +298,7 @@ const BookingForm = ({ tenant }: BookingFormProps) => {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="notes">Additional Notes</Label>
+          <Label htmlFor="notes">Megjegyzés</Label>
           <Textarea
             id="notes"
             value={formData.notes}
@@ -237,8 +308,8 @@ const BookingForm = ({ tenant }: BookingFormProps) => {
         </div>
       </div>
 
-      <Button type="submit" className="w-full" disabled={loading || !selectedDate || !selectedTime}>
-        {loading ? "Booking..." : "Book Appointment"}
+      <Button type="submit" className="w-full" disabled={loading || !selectedDate || !selectedTime || !selectedService}>
+        {loading ? "Foglalás..." : "Időpont foglalása"}
       </Button>
     </form>
   );

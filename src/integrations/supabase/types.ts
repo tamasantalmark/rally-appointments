@@ -24,6 +24,8 @@ export type Database = {
           end_time: string
           id: string
           notes: string | null
+          price: number | null
+          service_id: string | null
           start_time: string
           status: string | null
           tenant_id: string
@@ -38,6 +40,8 @@ export type Database = {
           end_time: string
           id?: string
           notes?: string | null
+          price?: number | null
+          service_id?: string | null
           start_time: string
           status?: string | null
           tenant_id: string
@@ -52,6 +56,8 @@ export type Database = {
           end_time?: string
           id?: string
           notes?: string | null
+          price?: number | null
+          service_id?: string | null
           start_time?: string
           status?: string | null
           tenant_id?: string
@@ -73,7 +79,6 @@ export type Database = {
           day_of_week: number
           end_time: string
           id: string
-          slot_duration: number | null
           start_time: string
           tenant_id: string
         }
@@ -82,7 +87,6 @@ export type Database = {
           day_of_week: number
           end_time: string
           id?: string
-          slot_duration?: number | null
           start_time: string
           tenant_id: string
         }
@@ -91,7 +95,6 @@ export type Database = {
           day_of_week?: number
           end_time?: string
           id?: string
-          slot_duration?: number | null
           start_time?: string
           tenant_id?: string
         }
@@ -104,6 +107,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      services: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          duration: number
+          id: string
+          name: string
+          price: number | null
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          duration: number
+          id?: string
+          name: string
+          price?: number | null
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          duration?: number
+          id?: string
+          name?: string
+          price?: number | null
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       tenants: {
         Row: {

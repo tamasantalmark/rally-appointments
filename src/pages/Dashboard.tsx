@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import TenantSetup from "@/components/TenantSetup";
 import AppointmentsList from "@/components/AppointmentsList";
 import AvailabilityManager from "@/components/AvailabilityManager";
+import ServicesManager from "@/components/ServicesManager";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -105,12 +106,13 @@ const Dashboard = () => {
 
       <div className="container mx-auto px-4 py-8">
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Availability Section */}
-          <div className="lg:col-span-1">
+          {/* Left Column */}
+          <div className="lg:col-span-1 space-y-6">
+            <ServicesManager tenantId={tenant.id} />
             <AvailabilityManager tenantId={tenant.id} />
           </div>
 
-          {/* Appointments Section */}
+          {/* Right Column - Appointments */}
           <div className="lg:col-span-2">
             <AppointmentsList tenantId={tenant.id} />
           </div>

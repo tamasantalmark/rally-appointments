@@ -30,7 +30,6 @@ const AvailabilityManager = ({ tenantId }: AvailabilityManagerProps) => {
     day_of_week: 1,
     start_time: "09:00",
     end_time: "17:00",
-    slot_duration: 30,
   });
 
   useEffect(() => {
@@ -102,17 +101,17 @@ const AvailabilityManager = ({ tenantId }: AvailabilityManagerProps) => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Availability</CardTitle>
-        <CardDescription>Set your available time slots</CardDescription>
+        <CardTitle>Elérhetőség</CardTitle>
+        <CardDescription>Állítsd be a szabad időszakaidat</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
           {/* Add New Slot */}
           <div className="border rounded-lg p-4 space-y-3">
-            <h3 className="font-medium">Add Time Slot</h3>
+            <h3 className="font-medium">Időablak hozzáadása</h3>
             
             <div className="space-y-2">
-              <Label>Day</Label>
+              <Label>Nap</Label>
               <Select
                 value={newSlot.day_of_week.toString()}
                 onValueChange={(value) => setNewSlot({ ...newSlot, day_of_week: parseInt(value) })}
@@ -132,7 +131,7 @@ const AvailabilityManager = ({ tenantId }: AvailabilityManagerProps) => {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Start Time</Label>
+                <Label>Kezdés</Label>
                 <Input
                   type="time"
                   value={newSlot.start_time}
@@ -140,7 +139,7 @@ const AvailabilityManager = ({ tenantId }: AvailabilityManagerProps) => {
                 />
               </div>
               <div className="space-y-2">
-                <Label>End Time</Label>
+                <Label>Vége</Label>
                 <Input
                   type="time"
                   value={newSlot.end_time}
@@ -149,28 +148,17 @@ const AvailabilityManager = ({ tenantId }: AvailabilityManagerProps) => {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Slot Duration (minutes)</Label>
-              <Input
-                type="number"
-                min="15"
-                step="15"
-                value={newSlot.slot_duration}
-                onChange={(e) => setNewSlot({ ...newSlot, slot_duration: parseInt(e.target.value) })}
-              />
-            </div>
-
             <Button onClick={addSlot} className="w-full">
               <Plus className="h-4 w-4 mr-2" />
-              Add Slot
+              Hozzáadás
             </Button>
           </div>
 
           {/* Current Slots */}
           <div className="space-y-2">
-            <h3 className="font-medium">Current Availability</h3>
+            <h3 className="font-medium">Jelenlegi elérhetőség</h3>
             {slots.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No availability slots set</p>
+              <p className="text-sm text-muted-foreground">Még nincs beállított időablak</p>
             ) : (
               <div className="space-y-2">
                 {slots.map((slot) => (
@@ -183,7 +171,7 @@ const AvailabilityManager = ({ tenantId }: AvailabilityManagerProps) => {
                         {DAYS.find((d) => d.value === slot.day_of_week)?.label}
                       </div>
                       <div className="text-muted-foreground">
-                        {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)} ({slot.slot_duration}min slots)
+                        {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
                       </div>
                     </div>
                     <Button
