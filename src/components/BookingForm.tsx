@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +32,7 @@ interface BookingFormProps {
 
 const BookingForm = ({ tenant }: BookingFormProps) => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [services, setServices] = useState<Service[]>([]);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>();
@@ -181,19 +183,27 @@ const BookingForm = ({ tenant }: BookingFormProps) => {
         description: error.message,
         variant: "destructive",
       });
+      setLoading(false);
     } else {
-      toast({
-        title: "Sikeres!",
-        description: "Az időpont lefoglalva",
+      // Navigate to confirmation page with booking details
+      navigate("/booking-confirmation", {
+        state: {
+          booking: {
+            businessName: tenant.business_name,
+            serviceName: selectedService.name,
+            date: format(selectedDate, "yyyy-MM-dd"),
+            startTime: format(startTime, "HH:mm:ss"),
+            endTime: format(endTime, "HH:mm:ss"),
+            duration: selectedService.duration,
+            price: selectedService.price,
+            customerName: formData.name,
+            customerEmail: formData.email,
+            customerPhone: formData.phone,
+            notes: formData.notes,
+          }
+        }
       });
-      // Reset form
-      setFormData({ name: "", email: "", phone: "", notes: "" });
-      setSelectedDate(undefined);
-      setSelectedTime("");
-      setSelectedService(null);
     }
-
-    setLoading(false);
   };
 
   return (
