@@ -41,25 +41,44 @@ const AppointmentsList = ({ tenantId }: AppointmentsListProps) => {
   }, [tenantId]);
 
   const fetchAppointments = async () => {
-    const { data, error } = await supabase
+    // Fetch appointments
+    const { data: appointmentsData, error: appointmentsError } = await supabase
       .from("appointments")
-      .select(`
-        *,
-        services (
-          name,
-          duration,
-          price
-        )
-      `)
+      .select("*")
       .eq("tenant_id", tenantId)
       .order("appointment_date", { ascending: true })
       .order("start_time", { ascending: true });
 
-    if (error) {
-      console.error("Error fetching appointments:", error);
-    } else {
-      setAppointments(data || []);
+    if (appointmentsError) {
+      console.error("Error fetching appointments:", appointmentsError);
+      setLoading(false);
+      return;
     }
+
+    // Fetch services separately
+    const { data: servicesData, error: servicesError } = await supabase
+      .from("services")
+      .select("*")
+      .eq("tenant_id", tenantId);
+
+    if (servicesError) {
+      console.error("Error fetching services:", servicesError);
+    }
+
+    // Manually join the data
+    const appointmentsWithServices = (appointmentsData || []).map(appointment => {
+      const service = servicesData?.find(s => s.id === appointment.service_id);
+      return {
+        ...appointment,
+        services: service ? {
+          name: service.name,
+          duration: service.duration,
+          price: service.price
+        } : null
+      };
+    });
+
+    setAppointments(appointmentsWithServices);
     setLoading(false);
   };
 
