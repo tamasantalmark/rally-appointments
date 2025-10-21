@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Mail, Phone, Clock } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { format, addDays, addWeeks, startOfWeek } from "date-fns";
+import { hu } from "date-fns/locale";
+import CalendarView from "./CalendarView";
+import AppointmentDialog from "./AppointmentDialog";
 
 interface AppointmentsListProps {
   tenantId: string;
@@ -15,6 +18,10 @@ const AppointmentsList = ({ tenantId }: AppointmentsListProps) => {
   const { toast } = useToast();
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<"week" | "day">("week");
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchAppointments();
@@ -82,35 +89,63 @@ const AppointmentsList = ({ tenantId }: AppointmentsListProps) => {
     setLoading(false);
   };
 
-  const updateStatus = async (appointmentId: string, newStatus: string) => {
+  const handleConfirm = async (appointmentId: string) => {
     const { error } = await supabase
       .from("appointments")
-      .update({ status: newStatus })
+      .update({ status: "confirmed" })
       .eq("id", appointmentId);
 
     if (error) {
       toast({
-        title: "Error",
+        title: "Hiba",
         description: error.message,
         variant: "destructive",
       });
     } else {
       toast({
-        title: "Updated",
-        description: `Appointment marked as ${newStatus}`,
+        title: "Megerősítve",
+        description: "A foglalás megerősítve",
       });
       fetchAppointments();
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "confirmed": return "default";
-      case "scheduled": return "secondary";
-      case "cancelled": return "destructive";
-      case "completed": return "outline";
-      default: return "secondary";
+  const handleCancel = async (appointmentId: string) => {
+    const { error } = await supabase
+      .from("appointments")
+      .update({ status: "cancelled" })
+      .eq("id", appointmentId);
+
+    if (error) {
+      toast({
+        title: "Hiba",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Törölve",
+        description: "A foglalás törölve",
+      });
+      fetchAppointments();
     }
+  };
+
+  const navigateDate = (direction: "prev" | "next") => {
+    if (viewMode === "week") {
+      setCurrentDate(prev => direction === "next" ? addWeeks(prev, 1) : addWeeks(prev, -1));
+    } else {
+      setCurrentDate(prev => direction === "next" ? addDays(prev, 1) : addDays(prev, -1));
+    }
+  };
+
+  const goToToday = () => {
+    setCurrentDate(new Date());
+  };
+
+  const handleAppointmentClick = (appointment: any) => {
+    setSelectedAppointment(appointment);
+    setDialogOpen(true);
   };
 
   if (loading) {
@@ -118,103 +153,82 @@ const AppointmentsList = ({ tenantId }: AppointmentsListProps) => {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Appointments</CardTitle>
-        <CardDescription>
-          Manage your upcoming and past appointments
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {appointments.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>No appointments yet</p>
-            <p className="text-sm">Share your booking page to start receiving appointments</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {appointments.map((appointment) => (
-              <Card key={appointment.id}>
-                <CardContent className="pt-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h3 className="font-semibold text-lg">{appointment.customer_name}</h3>
-                      {appointment.services && (
-                        <p className="text-sm text-primary font-medium">
-                          {appointment.services.name}
-                          {appointment.price && ` - ${appointment.price.toLocaleString('hu-HU')} Ft`}
-                        </p>
-                      )}
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
-                          {format(new Date(appointment.appointment_date), "MMM dd, yyyy")}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-4 w-4" />
-                          {appointment.start_time.slice(0, 5)} - {appointment.end_time.slice(0, 5)}
-                        </div>
-                      </div>
-                    </div>
-                    <Badge variant={getStatusColor(appointment.status)}>
-                      {appointment.status}
-                    </Badge>
-                  </div>
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Foglalások</CardTitle>
+          <CardDescription>
+            Naptárnézetben kezelheted a foglalásaidat
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {appointments.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>Még nincsenek foglalások</p>
+              <p className="text-sm">Oszd meg a foglalási oldaladat, hogy időpontokat fogadhass</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Controls */}
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => navigateDate("prev")}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={goToToday}
+                  >
+                    Ma
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => navigateDate("next")}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <span className="font-medium ml-2">
+                    {viewMode === "week" 
+                      ? `${format(startOfWeek(currentDate, { weekStartsOn: 1 }), "MMM d", { locale: hu })} - ${format(addDays(startOfWeek(currentDate, { weekStartsOn: 1 }), 6), "MMM d, yyyy", { locale: hu })}`
+                      : format(currentDate, "MMMM d, yyyy", { locale: hu })
+                    }
+                  </span>
+                </div>
 
-                  <div className="space-y-1 text-sm mb-4">
-                    {appointment.customer_email && (
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        <a href={`mailto:${appointment.customer_email}`} className="hover:underline">
-                          {appointment.customer_email}
-                        </a>
-                      </div>
-                    )}
-                    {appointment.customer_phone && (
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                        <a href={`tel:${appointment.customer_phone}`} className="hover:underline">
-                          {appointment.customer_phone}
-                        </a>
-                      </div>
-                    )}
-                    {appointment.notes && (
-                      <p className="text-muted-foreground mt-2">{appointment.notes}</p>
-                    )}
-                  </div>
+                <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "week" | "day")}>
+                  <TabsList>
+                    <TabsTrigger value="week">Heti</TabsTrigger>
+                    <TabsTrigger value="day">Napi</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
 
-                  {appointment.status === "scheduled" && (
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => updateStatus(appointment.id, "confirmed")}
-                      >
-                        Confirm
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => updateStatus(appointment.id, "completed")}
-                      >
-                        Complete
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => updateStatus(appointment.id, "cancelled")}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              {/* Calendar */}
+              <CalendarView
+                appointments={appointments}
+                currentDate={currentDate}
+                viewMode={viewMode}
+                onAppointmentClick={handleAppointmentClick}
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <AppointmentDialog
+        appointment={selectedAppointment}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
+    </>
   );
 };
 
