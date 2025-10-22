@@ -8,6 +8,7 @@ import TenantSetup from "@/components/TenantSetup";
 import AppointmentsList from "@/components/AppointmentsList";
 import AvailabilityManager from "@/components/AvailabilityManager";
 import ServicesManager from "@/components/ServicesManager";
+import TeamManager from "@/components/TeamManager";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -131,6 +132,7 @@ const Dashboard = () => {
           <div className="lg:col-span-1 space-y-6">
             <ServicesManager tenantId={tenant.id} />
             <AvailabilityManager tenantId={tenant.id} />
+            <TeamManager tenantId={tenant.id} />
           </div>
 
           {/* Right Column - Appointments */}
