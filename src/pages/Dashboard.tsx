@@ -34,11 +34,32 @@ const Dashboard = () => {
 
   const fetchTenant = async (userId: string) => {
     setLoading(true);
+    
+    // Fetch tenant through tenant_users junction table
+    const { data: tenantUsers, error: tenantUsersError } = await supabase
+      .from("tenant_users")
+      .select("tenant_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (tenantUsersError) {
+      console.error("Error fetching tenant users:", tenantUsersError);
+      setLoading(false);
+      return;
+    }
+
+    if (!tenantUsers) {
+      setTenant(null);
+      setLoading(false);
+      return;
+    }
+
+    // Fetch the actual tenant data
     const { data, error } = await supabase
       .from("tenants")
       .select("*")
-      .eq("user_id", userId)
-      .maybeSingle();
+      .eq("id", tenantUsers.tenant_id)
+      .single();
 
     if (error) {
       console.error("Error fetching tenant:", error);

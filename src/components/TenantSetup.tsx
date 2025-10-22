@@ -71,9 +71,30 @@ const TenantSetup = ({ userId, onTenantCreated }: TenantSetupProps) => {
           : error.message,
         variant: "destructive",
       });
-    } else {
-      onTenantCreated(data);
+      setLoading(false);
+      return;
     }
+
+    // Create tenant_users record with owner role
+    const { error: tenantUserError } = await supabase
+      .from("tenant_users")
+      .insert({
+        tenant_id: data.id,
+        user_id: userId,
+        role: "owner",
+      });
+
+    if (tenantUserError) {
+      toast({
+        title: "Error",
+        description: "Failed to assign ownership. Please contact support.",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
+
+    onTenantCreated(data);
 
     setLoading(false);
   };
