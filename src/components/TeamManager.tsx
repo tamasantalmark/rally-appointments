@@ -50,13 +50,16 @@ const TeamManager = ({ tenantId }: TeamManagerProps) => {
         variant: "destructive",
       });
     } else {
-      // Fetch email addresses for each user
+      // Fetch email addresses for each user using the database function
       const membersWithEmails = await Promise.all(
         (data || []).map(async (member) => {
-          const { data: userData } = await supabase.auth.admin.getUserById(member.user_id);
+          const { data: email } = await supabase.rpc(
+            "get_user_email_by_id",
+            { _user_id: member.user_id }
+          );
           return {
             ...member,
-            email: userData?.user?.email || "Ismeretlen",
+            email: email || "Ismeretlen",
           };
         })
       );
